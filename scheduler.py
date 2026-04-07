@@ -16,11 +16,12 @@ SENT_ALERTS_FILE = "sent_market_alerts.txt"
 # New York (EDT = UTC-4): 12:00 - 21:00 UTC
 
 MARKET_SESSIONS = [
-    {"name": "Test Alert 🛠️", "open": "10:57", "close": "10:58"},
     {"name": "Sydney 🇦🇺", "open": "22:00", "close": "07:00"},
     {"name": "Tokyo 🇯🇵", "open": "00:00", "close": "09:00"},
     {"name": "London 🇬🇧", "open": "07:00", "close": "16:00"},
     {"name": "New York 🇺🇸", "open": "12:00", "close": "21:00"},
+    # Major Overlap (High Volatility)
+    {"name": "London/New York Overlap 🚀", "open": "12:00", "close": "16:00"},
 ]
 
 def is_alert_sent(alert_id):
