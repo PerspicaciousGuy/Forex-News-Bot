@@ -26,11 +26,15 @@ WEEKEND_MESSAGE = (
 # 🚨 AUTOMATED MARKET ALERTS
 # ==========================================
 
-# Standard Alerts
-WARNING_30M = "⏳ **30 MINUTE WARNING** 🚨\n\nThe **{name}** session will open in 30 minutes! Get your charts ready. 📈"
-WARNING_5M = "🔔 **5 MINUTE PREP** ⏱️\n\nThe **{name}** session is opening in just 5 minutes! Finalize your entries. 🚀"
-MARKET_OPEN = "🟢 **MARKET OPEN** 🚀\n\nThe **{name}** session is now **OPEN**! High liquidity expected. 💎"
-MARKET_CLOSE = "🔴 **MARKET CLOSE** 📉\n\nThe **{name}** session is now **CLOSED**. Volatility may decrease. 😴"
+# Automated Market Alerts
+WARNING_TEXT = "⏳ **30 MINUTE WARNING** 🚨\n\nThe **{name}** session will open in 30 minutes! Get your charts ready. 📈"
+PREP_TEXT = "🔔 **5 MINUTE PREP** ⏱️\n\nThe **{name}** session is opening in just 5 minutes! Finalize your entries. 🚀"
+OPEN_TEXT = "🟢 **MARKET OPEN** 🚀\n\nThe **{name}** session is now **OPEN**! High liquidity expected. 💎"
+CLOSE_TEXT = "🔴 **MARKET CLOSE** 📉\n\nThe **{name}** session is now **CLOSED**. Volatility may decrease. 😴"
+
+# Special Overlap Enhanced Messages
+NY_OPEN_OVERLAP = "🟢 **MARKET OPEN & OVERLAP** 🚀🚀\n\nThe **New York** session is now **OPEN**! The **London/NY Overlap** has begun. Maximum liquidity and volatility expected! 💎💎"
+LONDON_CLOSE_OVERLAP = "🔴 **MARKET CLOSE & OVERLAP END** 📉\n\nThe **London** session is now **CLOSED**. The **London/NY Overlap** has ended. Volatility may decrease. 😴"
 
 # Weekend Specific Alerts
 WEEKEND_CLOSE_ALERT = "🛑 **WEEKEND CLOSE** 😴\n\nThe New York session has closed. The Forex markets are now **CLOSED** for the weekend. Enjoy your rest, traders! ☕🛋️"
