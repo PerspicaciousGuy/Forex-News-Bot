@@ -39,7 +39,7 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Filter by High and Medium impact (Case-insensitive)
     high_impact_events = [
         e for e in events 
-        if str(e.get("impact")).capitalize() in ["High", "Medium"]
+        if str(e.get("impact")).capitalize() in ["High", "Medium", "Med"]
     ]
     
     if not high_impact_events:
@@ -49,11 +49,13 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = "📊 **Economic Calendar (Today)**\n\n"
     # Take the first 10 events
     for event in high_impact_events[:10]:
-        impact = str(event.get("impact")).capitalize()
-        impact_emoji = "🔴" if impact == "High" else "🟠"
+        impact_val = str(event.get("impact")).capitalize()
+        # Handle "Med" vs "Medium"
+        impact_label = "High" if impact_val == "High" else "Medium"
+        impact_emoji = "🔴" if impact_label == "High" else "🟠"
         
-        # Parse date safely
-        date_str = event.get("date")
+        # Parse date safely (Forexfactory includes 'T')
+        date_str = event.get("date").replace("T", " ")
         try:
             # FMP format usually: 2026-04-07 09:30:00
             time_str = date_str[11:16] if len(date_str) > 16 else date_str

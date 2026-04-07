@@ -15,70 +15,79 @@ BASE_URL = "https://financialmodelingprep.com/api/v3"
 
 async def fetch_economic_calendar(from_date=None, to_date=None):
     """
-    Fetches economic calendar using the stable endpoint.
-    from_date and to_date should be in YYYY-MM-DD format.
+    Fetches economic calendar from Forex Factory (Free Source).
     """
-    if not FMP_API_KEY:
-        logger.error("❌ FMP_API_KEY is missing! Check your environment variables.")
-        return []
-
-    # Get a 3-day window by default to ensure we don't miss anything due to timezones
-    if not from_date:
-        from_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    if not to_date:
-        to_date = (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
-
-    # Using the STABLE endpoint: https://financialmodelingprep.com/stable/economic-calendar
-    url = f"https://financialmodelingprep.com/stable/economic-calendar?from={from_date}&to={to_date}&apikey={FMP_API_KEY}"
+    # Note: Forexfactory doesn't use from/to in this JSON, it gives the whole week.
+    url = "https://nfs.forexfactory.com/ff_calendar_thisweek.json"
     
-    logger.info(f"🔍 Fetching calendar from {from_date} to {to_date} (Stable Endpoint)...")
+    logger.info("📊 Fetching FREE economic calendar from Forex Factory...")
     
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(url, timeout=10) as response:
+            async with session.get(url, headers=headers, timeout=15) as response:
                 if response.status == 200:
                     data = await response.json()
-                    logger.info(f"✅ Fetched {len(data)} calendar events.")
-                    return data
-                elif response.status == 403:
-                    logger.error("❌ FMP Error 403: You may need a higher plan or the endpoint is blocked.")
-                    return []
+                    # Standardize field names to match the rest of the bot
+                    standardized_data = []
+                    today = datetime.now().strftime("%m-%d-%Y")
+                    
+                    for event in data:
+                        # ForexFactory JSON fields: title, country, date, time, impact, forecast, previous
+                        standardized_data.append({
+                            "event": event.get("title"),
+                            "currency": event.get("country"),
+                            "date": f"{event.get('date')} {event.get('time')}",
+                            "impact": event.get("impact"),
+                            "actual": "", # FF JSON usually doesn't have live 'actual' in this endpoint
+                            "previous": event.get("previous"),
+                        })
+                    logger.info(f"✅ Fetched {len(standardized_data)} free calendar events.")
+                    return standardized_data
                 else:
-                    error_text = await response.text()
-                    logger.error(f"❌ Error fetching calendar: {response.status} - {error_text}")
+                    logger.error(f"❌ Error fetching FF calendar: {response.status}")
                     return []
         except Exception as e:
-            logger.error(f"⚠️ Exception during calendar fetch: {e}")
+            logger.error(f"⚠️ FF Fetch Exception: {e}")
             return []
 
 async def fetch_forex_news(limit=10):
     """
-    Fetches latest forex-related news using the stable /forex-latest endpoint.
+    Fetches latest forex news from ForexLive RSS feed (Free Source).
     """
-    if not FMP_API_KEY:
-        logger.error("❌ FMP_API_KEY is missing! Check your environment variables.")
-        return []
-
-    # Using the STABLE endpoint as requested by FMP for non-legacy users
-    # Note: We use 'stable/news/forex-latest' and the base URL might need modification
-    url = f"https://financialmodelingprep.com/stable/news/forex-latest?limit={limit}&apikey={FMP_API_KEY}"
+    url = "https://www.forexlive.com/feed/news"
     
-    logger.info("🗞️ Fetching latest forex news (Stable Endpoint)...")
+    logger.info("🗞️ Fetching FREE forex news from ForexLive RSS...")
 
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(url, timeout=10) as response:
+            async with session.get(url, timeout=15) as response:
                 if response.status == 200:
-                    data = await response.json()
-                    logger.info(f"✅ Fetched {len(data)} news items.")
-                    return data
-                elif response.status == 403:
-                    logger.error("❌ FMP Error 403: You may need a higher plan or the endpoint is blocked.")
-                    return []
+                    xml_data = await response.text()
+                    
+                    # Simple manual parsing for RSS items (avoiding extra dependencies)
+                    import re
+                    items = re.findall(r'<item>(.*?)</item>', xml_data, re.DOTALL)
+                    
+                    news_items = []
+                    for item in items[:limit]:
+                        title_match = re.search(r'<title>(.*?)</title>', item, re.DOTALL)
+                        link_match = re.search(r'<link>(.*?)</link>', item, re.DOTALL)
+                        
+                        if title_match and link_match:
+                            news_items.append({
+                                "title": title_match.group(1).replace("<![CDATA[", "").replace("]]>", ""),
+                                "url": link_match.group(1).strip()
+                            })
+                    
+                    logger.info(f"✅ Fetched {len(news_items)} free news items.")
+                    return news_items
                 else:
-                    error_text = await response.text()
-                    logger.error(f"❌ Error fetching news: {response.status} - {error_text}")
+                    logger.error(f"❌ Error fetching RSS news: {response.status}")
                     return []
         except Exception as e:
-            logger.error(f"⚠️ Exception during news fetch: {e}")
+            logger.error(f"⚠️ RSS Fetch Exception: {e}")
             return []

@@ -48,9 +48,12 @@ async def high_impact_alert_task(context: ContextTypes.DEFAULT_TYPE):
             continue
             
         event_time_str = event.get("date")
+        # Ensure 'T' is replaced by ' ' for consistent parsing
+        if isinstance(event_time_str, str):
+            event_time_str = event_time_str.replace("T", " ")
+
         # Format: 2026-04-07 09:30:00
         try:
-             # Ensure we have a valid string before parsing
             if not isinstance(event_time_str, str):
                 continue
             event_time = datetime.strptime(event_time_str[:19], "%Y-%m-%d %H:%M:%S")
