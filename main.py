@@ -2,7 +2,8 @@ import logging
 import os
 import asyncio
 from telegram.ext import ApplicationBuilder, CommandHandler
-from bot_logic import start_command, sessions_command
+from commands.start import start_command
+from commands.sessions import sessions_command
 from scheduler import market_timing_alert_task
 from dotenv import load_dotenv
 from fastapi import FastAPI

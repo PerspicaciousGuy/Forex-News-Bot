@@ -2,6 +2,10 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 import logging
 import os
+from messages.bot_text import (
+    WEEKEND_CLOSE_ALERT, WEEKEND_OPEN_ALERT, 
+    WARNING_30M, MARKET_OPEN, MARKET_CLOSE
+)
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -61,7 +65,7 @@ async def market_timing_alert_task(context):
     if weekday == 4 and current_time_str == "21:00":
         alert_id = f"{today_str}_weekend_close"
         if not is_alert_sent(alert_id):
-            msg = "🛑 **WEEKEND CLOSE** 😴\n\nThe New York session has closed. The Forex markets are now **CLOSED** for the weekend. Enjoy your rest, traders! ☕🛋️"
+            msg = WEEKEND_CLOSE_ALERT
             await send_telegram_msg(context, chat_id, msg, alert_id)
         return # Skip everything after NY Close on Friday
 
@@ -77,7 +81,7 @@ async def market_timing_alert_task(context):
     if weekday == 6 and current_time_str == "21:30":
         alert_id = f"{today_str}_weekend_open"
         if not is_alert_sent(alert_id):
-            msg = "🚀 **MARKETS OPENING** 📈\n\nWelcome back! The new trading week is beginning. Sydney will open in 30 minutes! Get your charts ready. 🗺️📊"
+            msg = WEEKEND_OPEN_ALERT
             await send_telegram_msg(context, chat_id, msg, alert_id)
         return # Avoid overlapping with standard Sydney 30m warning
 
@@ -95,21 +99,21 @@ async def market_timing_alert_task(context):
         if current_time_str == warning_dt:
             alert_id = f"{today_str}_{name}_30min_warning"
             if not is_alert_sent(alert_id):
-                msg = f"⏳ **30 MINUTE WARNING** 🚨\n\nThe **{name}** session will open in 30 minutes! Get your charts ready. 📈"
+                msg = WARNING_30M.format(name=name)
                 await send_telegram_msg(context, chat_id, msg, alert_id)
 
         # 2. Check Market Open
         if current_time_str == open_time:
             alert_id = f"{today_str}_{name}_open"
             if not is_alert_sent(alert_id):
-                msg = f"🟢 **MARKET OPEN** 🚀\n\nThe **{name}** session is now **OPEN**! High liquidity expected. 💎"
+                msg = MARKET_OPEN.format(name=name)
                 await send_telegram_msg(context, chat_id, msg, alert_id)
 
         # 3. Check Market Close
         if current_time_str == close_time:
             alert_id = f"{today_str}_{name}_close"
             if not is_alert_sent(alert_id):
-                msg = f"🔴 **MARKET CLOSE** 📉\n\nThe **{name}** session is now **CLOSED**. Volatility may decrease. 😴"
+                msg = MARKET_CLOSE.format(name=name)
                 await send_telegram_msg(context, chat_id, msg, alert_id)
 
 async def send_telegram_msg(context, chat_id, message, alert_id):

@@ -1,24 +1,8 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from telegram import Update
 from telegram.ext import ContextTypes
 from scheduler import MARKET_SESSIONS
-
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Handles /start command.
-    """
-    message = (
-        "👋 Welcome! I am your **Market Session Monitor**.\n\n"
-        "I will automatically alert this group when the **London, New York, Tokyo, and Sydney** markets open or close.\n\n"
-        "📜 **Commands:**\n"
-        "/sessions - Check what's open right now and time left!\n\n"
-        "⏰ **What I do automatically:**\n"
-        "• 🚨 30-minute Warning before Market Opens\n"
-        "• 🟢 Live Market Open Alerts\n"
-        "• 🔴 Market Close Alerts\n\n"
-        "Sit back and let me keep you on track! 🚀"
-    )
-    await update.message.reply_text(message, parse_mode="Markdown")
+from messages.bot_text import SESSION_HEADER, SESSION_FOOTER, WEEKEND_MESSAGE
 
 async def sessions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -38,10 +22,10 @@ async def sessions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         is_weekend = True
 
     if is_weekend:
-        await update.message.reply_text("🛑 **MARKETS CLOSED** 😴\n\nForex markets are closed for the weekend. They will re-open for the **Sydney session** at `22:00` UTC on Sunday night! 🚀", parse_mode="Markdown")
+        await update.message.reply_text(WEEKEND_MESSAGE, parse_mode="Markdown")
         return
 
-    response = "🗺️ **Market Status (Live UTC)**\n\n"
+    response = SESSION_HEADER
     
     for session in MARKET_SESSIONS:
         name = session["name"]
@@ -61,5 +45,5 @@ async def sessions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response += f"**{name}**: {status_emoji}\n"
         response += f"   🕒 Hours: `{open_time}` to `{close_time}` UTC\n\n"
 
-    response += f"\n🕒 **Current Time**: `{current_time_str}` UTC"
+    response += SESSION_FOOTER.format(current_time=current_time_str)
     await update.message.reply_text(response, parse_mode="Markdown")
