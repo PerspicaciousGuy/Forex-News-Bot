@@ -15,7 +15,7 @@ BASE_URL = "https://financialmodelingprep.com/api/v3"
 
 async def fetch_economic_calendar(from_date=None, to_date=None):
     """
-    Fetches economic calendar from FMP.
+    Fetches economic calendar using the stable endpoint.
     from_date and to_date should be in YYYY-MM-DD format.
     """
     if not FMP_API_KEY:
@@ -28,9 +28,10 @@ async def fetch_economic_calendar(from_date=None, to_date=None):
     if not to_date:
         to_date = (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
 
-    url = f"{BASE_URL}/economic_calendar?from={from_date}&to={to_date}&apikey={FMP_API_KEY}"
+    # Using the STABLE endpoint: https://financialmodelingprep.com/stable/economic-calendar
+    url = f"https://financialmodelingprep.com/stable/economic-calendar?from={from_date}&to={to_date}&apikey={FMP_API_KEY}"
     
-    logger.info(f"🔍 Fetching calendar from {from_date} to {to_date}...")
+    logger.info(f"🔍 Fetching calendar from {from_date} to {to_date} (Stable Endpoint)...")
     
     async with aiohttp.ClientSession() as session:
         try:
@@ -39,6 +40,9 @@ async def fetch_economic_calendar(from_date=None, to_date=None):
                     data = await response.json()
                     logger.info(f"✅ Fetched {len(data)} calendar events.")
                     return data
+                elif response.status == 403:
+                    logger.error("❌ FMP Error 403: You may need a higher plan or the endpoint is blocked.")
+                    return []
                 else:
                     error_text = await response.text()
                     logger.error(f"❌ Error fetching calendar: {response.status} - {error_text}")
@@ -49,16 +53,17 @@ async def fetch_economic_calendar(from_date=None, to_date=None):
 
 async def fetch_forex_news(limit=10):
     """
-    Fetches latest forex-related news using multiple tickers for better coverage.
+    Fetches latest forex-related news using the stable /forex-latest endpoint.
     """
     if not FMP_API_KEY:
         logger.error("❌ FMP_API_KEY is missing! Check your environment variables.")
         return []
 
-    # Using stock_news with general forex-related tickers for broader coverage
-    url = f"{BASE_URL}/stock_news?tickers=EURUSD,GBPUSD,USDJPY,AUDUSD,USDCAD,USDCHF,NZDUSD&limit={limit}&apikey={FMP_API_KEY}"
+    # Using the STABLE endpoint as requested by FMP for non-legacy users
+    # Note: We use 'stable/news/forex-latest' and the base URL might need modification
+    url = f"https://financialmodelingprep.com/stable/news/forex-latest?limit={limit}&apikey={FMP_API_KEY}"
     
-    logger.info("🗞️ Fetching latest forex news...")
+    logger.info("🗞️ Fetching latest forex news (Stable Endpoint)...")
 
     async with aiohttp.ClientSession() as session:
         try:
@@ -67,6 +72,9 @@ async def fetch_forex_news(limit=10):
                     data = await response.json()
                     logger.info(f"✅ Fetched {len(data)} news items.")
                     return data
+                elif response.status == 403:
+                    logger.error("❌ FMP Error 403: You may need a higher plan or the endpoint is blocked.")
+                    return []
                 else:
                     error_text = await response.text()
                     logger.error(f"❌ Error fetching news: {response.status} - {error_text}")
