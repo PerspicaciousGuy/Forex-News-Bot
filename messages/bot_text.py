@@ -28,6 +28,7 @@ WEEKEND_MESSAGE = (
 
 # Standard Alerts
 WARNING_30M = "⏳ **30 MINUTE WARNING** 🚨\n\nThe **{name}** session will open in 30 minutes! Get your charts ready. 📈"
+WARNING_5M = "🔔 **5 MINUTE PREP** ⏱️\n\nThe **{name}** session is opening in just 5 minutes! Finalize your entries. 🚀"
 MARKET_OPEN = "🟢 **MARKET OPEN** 🚀\n\nThe **{name}** session is now **OPEN**! High liquidity expected. 💎"
 MARKET_CLOSE = "🔴 **MARKET CLOSE** 📉\n\nThe **{name}** session is now **CLOSED**. Volatility may decrease. 😴"
 

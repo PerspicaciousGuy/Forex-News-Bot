@@ -4,7 +4,7 @@ import logging
 import os
 from messages.bot_text import (
     WEEKEND_CLOSE_ALERT, WEEKEND_OPEN_ALERT, 
-    WARNING_30M, MARKET_OPEN, MARKET_CLOSE
+    WARNING_30M, WARNING_5M, MARKET_OPEN, MARKET_CLOSE
 )
 
 # Setup logging
@@ -91,18 +91,26 @@ async def market_timing_alert_task(context):
         open_time = session["open"]
         close_time = session["close"]
 
-        # Parse times to handle 30m warning
+        # Parse times to handle warnings
         open_dt = datetime.strptime(open_time, "%H:%M")
-        warning_dt = (open_dt - timedelta(minutes=30)).strftime("%H:%M")
+        warning_30m_dt = (open_dt - timedelta(minutes=30)).strftime("%H:%M")
+        warning_5m_dt = (open_dt - timedelta(minutes=5)).strftime("%H:%M")
 
         # 1. Check 30-minute Warning
-        if current_time_str == warning_dt:
+        if current_time_str == warning_30m_dt:
             alert_id = f"{today_str}_{name}_30min_warning"
             if not is_alert_sent(alert_id):
                 msg = WARNING_30M.format(name=name)
                 await send_telegram_msg(context, chat_id, msg, alert_id)
 
-        # 2. Check Market Open
+        # 2. Check 5-minute Warning (New!)
+        if current_time_str == warning_5m_dt:
+            alert_id = f"{today_str}_{name}_5min_warning"
+            if not is_alert_sent(alert_id):
+                msg = WARNING_5M.format(name=name)
+                await send_telegram_msg(context, chat_id, msg, alert_id)
+
+        # 3. Check Market Open
         if current_time_str == open_time:
             alert_id = f"{today_str}_{name}_open"
             if not is_alert_sent(alert_id):
