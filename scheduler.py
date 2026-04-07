@@ -10,15 +10,14 @@ logger = logging.getLogger(__name__)
 SENT_ALERTS_FILE = "sent_market_alerts.txt"
 
 # --- MARKET SESSIONS CONFIGURATION (UTC) ---
-# Note: These are standard Summer (April) UTC times.
-# Sydney: 21:00 - 06:00 UTC
-# Tokyo: 23:00 - 08:00 UTC
-# London: 07:00 - 16:00 UTC
-# New York: 12:00 - 21:00 UTC
+# Sydney (AEST = UTC+10): 22:00 - 07:00 UTC
+# Tokyo (JST = UTC+9): 00:00 - 09:00 UTC
+# London (BST = UTC+1): 07:00 - 16:00 UTC
+# New York (EDT = UTC-4): 12:00 - 21:00 UTC
 
 MARKET_SESSIONS = [
-    {"name": "Sydney 🇦🇺", "open": "21:00", "close": "06:00"},
-    {"name": "Tokyo 🇯🇵", "open": "23:00", "close": "08:00"},
+    {"name": "Sydney 🇦🇺", "open": "22:00", "close": "07:00"},
+    {"name": "Tokyo 🇯🇵", "open": "00:00", "close": "09:00"},
     {"name": "London 🇬🇧", "open": "07:00", "close": "16:00"},
     {"name": "New York 🇺🇸", "open": "12:00", "close": "21:00"},
 ]
