@@ -1,41 +1,54 @@
-# 📈 Forex High-Impact News Bot
+# Forex Market Session Monitor Bot
 
-A Telegram bot to send high-impact economic alerts and news to groups or channels. Designed for Python and hosting on **Koyeb**.
+A professional Telegram bot designed to monitor global Forex market sessions and provide automated alerts for market openings, closings, and overlaps. The bot is focused on precision timing to help traders manage their trading day effectively.
 
-## 🚀 Features
-*   📊 `/calendar`: Current day's economic calendar (Filtered for High/Medium impact).
-*   🗞️ `/news`: Latest news for major Forex pairs (EURUSD, GBPUSD, etc.).
-*   🚨 **Auto-Alerts**: Scans the calendar every 30 minutes and sends a notification 30-60 mins before any **High Impact** event.
+## Features
 
-## 🛠️ Setup
+### 1. Automated Market Alerts
+The bot tracks the four major global market sessions: Sydney, Tokyo, London, and New York. It provides the following automated notifications for each:
+- 30-Minute Warning: Notification sent 30 minutes before any market opens.
+- 5-Minute Prep: Notification sent 5 minutes before any market opens.
+- Market Open: Notification sent the moment a session officially begins.
+- Market Close: Notification sent the moment a session ends.
 
-### 1. Requirements
-*   **Python 3.10+**
-*   **Telegram Bot Token**: Get it from [@BotFather](https://t.me/BotFather).
-*   **FMP API Key**: Get a free key from [Financial Modeling Prep](https://site.financialmodelingprep.com/developer/docs/).
-*   **Chat ID**: The ID of your group or channel. If it's a public channel, use `@channel_username`. If it's private, you'll need the numeric ID.
+### 2. High Volatility Overlap Alerts
+The bot specifically identifies the London and New York session overlap, which is the period of highest liquidity and volatility in the Forex market.
 
-### 2. Configuration
-1.  Copy `.env.example` to `.env`.
-2.  Fill in your `TELEGRAM_BOT_TOKEN`, `FMP_API_KEY`, and `CHAT_ID`.
+### 3. Weekend Mode
+To maintain a clean and professional experience, the bot includes a specialized weekend handler:
+- Friday Market Wrap: Sends a notification at 21:00 UTC (New York Close) once the markets close for the weekend.
+- Sunday Market Open: Sends a notification at 21:30 UTC just before the new trading week begins with the Sydney open.
+- Silent Saturdays: Automated session alerts are automatically disabled during the weekend.
 
-```bash
-TELEGRAM_BOT_TOKEN=123456...
-FMP_API_KEY=your_key...
-CHAT_ID=@my_forex_channel
-```
+### 4. Interactive Commands
+- /start: Welcomes the user and explains the bot's capabilities.
+- /sessions: Provides a live real-time status of all four major markets, showing which sessions are currently open or closed and their respective trading hours.
 
-### 3. Running Locally
-```bash
-pip install -r requirements.txt
-python main.py
-```
+## Project Architecture
 
-## 🏗️ Deployment (Koyeb)
-1.  Connect your GitHub repository to Koyeb.
-2.  Select **Docker** (using the provided `Dockerfile`) or **Native Buildpack** (using the `Procfile`).
-3.  Add the environment variables in the Koyeb dashboard.
-4.  **Important**: Deploy as a **"Worker"** (no port required).
+The codebase is organized into a modular structure for easy maintenance and scalability:
+- commands/: Contains individual logic files for each Telegram command.
+- messages/: Centralized one-file repository for all bot communication text.
+- scheduler.py: The background monitoring engine that handles all temporal calculations and alerts.
+- main.py: The entry point that initializes the Telegram application and the FastAPI health-check server.
 
-## 🛡️ License
-MIT
+## Installation and Setup
+
+### Prerequisites
+- Python 3.10 or higher.
+- A Telegram Bot Token (obtained via @BotFather).
+- A designated Telegram Chat ID (Group or Channel).
+
+### Required Environment Variables
+Create a .env file in the root directory with the following keys:
+- TELEGRAM_BOT_TOKEN: Your unique API token from @BotFather.
+- CHAT_ID: The numeric ID of the group or channel where you want the alerts delivered.
+
+### Running Locally
+1. Install dependencies:
+   pip install -r requirements.txt
+2. Start the bot:
+   python main.py
+
+## Deployment
+This project is configured for cloud hosting services like Koyeb. It includes a built-in FastAPI server on port 8000 for health monitoring.
