@@ -25,27 +25,47 @@ async def calendar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🔍 Fetching today's economic calendar...")
     
     events = await fetch_economic_calendar()
-    if not events:
-        await update.message.reply_text("❌ Could not fetch calendar at the moment.")
+    
+    # If events is None it would mean an error occurred, but our current API returns [] for errors too.
+    # We check if it's a list.
+    if not isinstance(events, list):
+        await update.message.reply_text("❌ There was an error connecting to the news service.")
         return
 
-    # Filter by High and Medium impact (if needed)
-    high_impact_events = [e for e in events if e.get("impact") in ["High", "Medium"]]
+    if not events:
+        await update.message.reply_text("✅ No economic events found for the requested period.")
+        return
+
+    # Filter by High and Medium impact (Case-insensitive)
+    high_impact_events = [
+        e for e in events 
+        if str(e.get("impact")).capitalize() in ["High", "Medium"]
+    ]
     
     if not high_impact_events:
-        await update.message.reply_text("✅ No high-impact events for today.")
+        await update.message.reply_text("✅ No high or medium impact events scheduled for today.")
         return
 
     response = "📊 **Economic Calendar (Today)**\n\n"
-    for event in high_impact_events[:10]: # Limit to 10 for readability
-        impact_emoji = "🔴" if event.get("impact") == "High" else "🟠"
-        time_str = event.get("date")[11:16] # HH:MM
+    # Take the first 10 events
+    for event in high_impact_events[:10]:
+        impact = str(event.get("impact")).capitalize()
+        impact_emoji = "🔴" if impact == "High" else "🟠"
+        
+        # Parse date safely
+        date_str = event.get("date")
+        try:
+            # FMP format usually: 2026-04-07 09:30:00
+            time_str = date_str[11:16] if len(date_str) > 16 else date_str
+        except:
+            time_str = "??:??"
+
         currency = event.get("currency")
         event_name = event.get("event")
         
         response += (
-            f"{impact_emoji} {time_str} {currency} - {event_name}\n"
-            f"   Actual: {event.get('actual') or '-'} | Prev: {event.get('previous') or '-'}\n\n"
+            f"{impact_emoji} `{time_str}` **{currency}** - {event_name}\n"
+            f"   Actual: `{event.get('actual') or '-'}` | Prev: `{event.get('previous') or '-'}`\n\n"
         )
 
     await update.message.reply_text(response, parse_mode="Markdown")

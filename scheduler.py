@@ -43,16 +43,19 @@ async def high_impact_alert_task(context: ContextTypes.DEFAULT_TYPE):
         return
 
     for event in events:
-        impact = event.get("impact")
+        impact = str(event.get("impact")).capitalize()
         if impact != "High":
             continue
             
         event_time_str = event.get("date")
         # Format: 2026-04-07 09:30:00
         try:
-            event_time = datetime.strptime(event_time_str, "%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            print(f"Invalid date format: {event_time_str}")
+             # Ensure we have a valid string before parsing
+            if not isinstance(event_time_str, str):
+                continue
+            event_time = datetime.strptime(event_time_str[:19], "%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError):
+            logger.error(f"Invalid date format: {event_time_str}")
             continue
 
         # Check if event is within the next 60 minutes
