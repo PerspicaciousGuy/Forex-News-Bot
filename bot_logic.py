@@ -26,7 +26,21 @@ async def sessions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     now_utc = datetime.now(timezone.utc)
     current_time_str = now_utc.strftime("%H:%M")
+    weekday = now_utc.weekday()
     
+    # Check for Weekend first
+    is_weekend = False
+    if weekday == 5: # Saturday
+        is_weekend = True
+    elif weekday == 4 and current_time_str >= "21:05": # Friday night
+        is_weekend = True
+    elif weekday == 6 and current_time_str < "21:30": # Sunday morning
+        is_weekend = True
+
+    if is_weekend:
+        await update.message.reply_text("🛑 **MARKETS CLOSED** 😴\n\nForex markets are closed for the weekend. They will re-open for the **Sydney session** at `22:00` UTC on Sunday night! 🚀", parse_mode="Markdown")
+        return
+
     response = "🗺️ **Market Status (Live UTC)**\n\n"
     
     for session in MARKET_SESSIONS:

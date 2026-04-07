@@ -43,12 +43,45 @@ async def market_timing_alert_task(context):
     now_utc = datetime.now(timezone.utc)
     current_time_str = now_utc.strftime("%H:%M")
     today_str = now_utc.strftime("%Y-%m-%d")
+    weekday = now_utc.weekday() # 0 = Monday, 6 = Sunday
     
     chat_id = os.getenv("CHAT_ID")
     if not chat_id:
         logger.error("❌ CHAT_ID not set!")
         return
 
+    # 🛑 WEEKEND CHECK: If it's Saturday or Sunday before Sydney opens (22:00)
+    if weekday == 5: # Saturday - Completely Closed
+        return
+    if weekday == 6 and current_time_str < "21:30": # Sunday before Sydney Prep
+        return
+
+    # --- SPECIAL WEEKEND ALERTS ---
+    # 🔴 FRIDAY CLOSE (NY Close)
+    if weekday == 4 and current_time_str == "21:00":
+        alert_id = f"{today_str}_weekend_close"
+        if not is_alert_sent(alert_id):
+            msg = "🛑 **WEEKEND CLOSE** 😴\n\nThe New York session has closed. The Forex markets are now **CLOSED** for the weekend. Enjoy your rest, traders! ☕🛋️"
+            await send_telegram_msg(context, chat_id, msg, alert_id)
+        return # Skip everything after NY Close on Friday
+
+    # 🛑 WEEKEND CHECK: Saturday and Sunday before Sydney Prep
+    if weekday == 5: # Saturday - Completely Closed
+        return
+    if weekday == 6 and current_time_str < "21:30": # Sunday Before Prep
+        return
+    if weekday == 4 and current_time_str > "21:00": # Friday Night After Close
+        return
+
+    # 🔵 SUNDAY OPEN (Sydney Prep)
+    if weekday == 6 and current_time_str == "21:30":
+        alert_id = f"{today_str}_weekend_open"
+        if not is_alert_sent(alert_id):
+            msg = "🚀 **MARKETS OPENING** 📈\n\nWelcome back! The new trading week is beginning. Sydney will open in 30 minutes! Get your charts ready. 🗺️📊"
+            await send_telegram_msg(context, chat_id, msg, alert_id)
+        return # Avoid overlapping with standard Sydney 30m warning
+
+    # --- STANDARD SESSION ALERTS ---
     for session in MARKET_SESSIONS:
         name = session["name"]
         open_time = session["open"]
