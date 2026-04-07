@@ -1,88 +1,88 @@
 import asyncio
-from datetime import datetime, timedelta
-from api_client import fetch_economic_calendar
-from telegram.ext import ContextTypes
+from datetime import datetime, timezone, timedelta
+import logging
 import os
 
-# To avoid duplicate alerts
-SENT_ALERTS_FILE = "sent_alerts.txt"
+# Setup logging
+logger = logging.getLogger(__name__)
 
-def is_alert_sent(event_id):
-    """
-    Check if an alert was already sent for this event.
-    """
+# To avoid duplicate alerts within the same minute
+SENT_ALERTS_FILE = "sent_market_alerts.txt"
+
+# --- MARKET SESSIONS CONFIGURATION (UTC) ---
+# Note: These are standard Summer (April) UTC times.
+# Sydney: 21:00 - 06:00 UTC
+# Tokyo: 23:00 - 08:00 UTC
+# London: 07:00 - 16:00 UTC
+# New York: 12:00 - 21:00 UTC
+
+MARKET_SESSIONS = [
+    {"name": "Sydney 🇦🇺", "open": "21:00", "close": "06:00"},
+    {"name": "Tokyo 🇯🇵", "open": "23:00", "close": "08:00"},
+    {"name": "London 🇬🇧", "open": "07:00", "close": "16:00"},
+    {"name": "New York 🇺🇸", "open": "12:00", "close": "21:00"},
+]
+
+def is_alert_sent(alert_id):
+    """Checks if alert was sent today."""
     if not os.path.exists(SENT_ALERTS_FILE):
         return False
     with open(SENT_ALERTS_FILE, "r") as f:
-        return event_id in f.read().splitlines()
+        return alert_id in f.read().splitlines()
 
-def mark_alert_as_sent(event_id):
-    """
-    Mark an alert as sent.
-    """
+def mark_alert_as_sent(alert_id):
+    """Marks alert as sent."""
     with open(SENT_ALERTS_FILE, "a") as f:
-        f.write(f"{event_id}\n")
+        f.write(f"{alert_id}\n")
 
-async def high_impact_alert_task(context: ContextTypes.DEFAULT_TYPE):
+async def market_timing_alert_task(context):
     """
-    Task to check for high-impact news and send alerts.
-    Runs every 30 minutes in the background.
+    Checks for market openings and closings every minute.
     """
-    print(f"[{datetime.now()}] --- Checking for high-impact alerts... ---")
-    
-    events = await fetch_economic_calendar()
-    if not events:
-        return
-
-    now = datetime.now()
-    alert_threshold = 60 # Check events within the next 60 minutes
+    now_utc = datetime.now(timezone.utc)
+    current_time_str = now_utc.strftime("%H:%M")
+    today_str = now_utc.strftime("%Y-%m-%d")
     
     chat_id = os.getenv("CHAT_ID")
     if not chat_id:
-        print("❌ Error: CHAT_ID not set in environment variables.")
+        logger.error("❌ CHAT_ID not set!")
         return
 
-    for event in events:
-        impact = str(event.get("impact")).capitalize()
-        if impact != "High":
-            continue
-            
-        event_time_str = event.get("date")
-        # Ensure 'T' is replaced by ' ' for consistent parsing
-        if isinstance(event_time_str, str):
-            event_time_str = event_time_str.replace("T", " ")
+    for session in MARKET_SESSIONS:
+        name = session["name"]
+        open_time = session["open"]
+        close_time = session["close"]
 
-        # Format: 2026-04-07 09:30:00
-        try:
-            if not isinstance(event_time_str, str):
-                continue
-            event_time = datetime.strptime(event_time_str[:19], "%Y-%m-%d %H:%M:%S")
-        except (ValueError, TypeError):
-            logger.error(f"Invalid date format: {event_time_str}")
-            continue
+        # Parse times to handle 30m warning
+        open_dt = datetime.strptime(open_time, "%H:%M")
+        warning_dt = (open_dt - timedelta(minutes=30)).strftime("%H:%M")
 
-        # Check if event is within the next 60 minutes
-        diff = (event_time - now).total_seconds() / 60
-        
-        # Unique ID for event: Date + Event Name
-        event_id = f"{event.get('date')}_{event.get('event')}".replace(" ", "_")
+        # 1. Check 30-minute Warning
+        if current_time_str == warning_dt:
+            alert_id = f"{today_str}_{name}_30min_warning"
+            if not is_alert_sent(alert_id):
+                msg = f"⏳ **30 MINUTE WARNING** 🚨\n\nThe **{name}** session will open in 30 minutes! Get your charts ready. 📈"
+                await send_telegram_msg(context, chat_id, msg, alert_id)
 
-        if 0 < diff <= alert_threshold and not is_alert_sent(event_id):
-            currency = event.get("currency")
-            event_name = event.get("event")
-            time_left = int(diff)
+        # 2. Check Market Open
+        if current_time_str == open_time:
+            alert_id = f"{today_str}_{name}_open"
+            if not is_alert_sent(alert_id):
+                msg = f"🟢 **MARKET OPEN** 🚀\n\nThe **{name}** session is now **OPEN**! High liquidity expected. 💎"
+                await send_telegram_msg(context, chat_id, msg, alert_id)
 
-            alert_message = (
-                f"🚨 **HIGH IMPACT NEWS ALERT** 🚨\n\n"
-                f"🪙 **Currency**: {currency}\n"
-                f"📉 **Event**: {event_name}\n"
-                f"⏰ **Time Left**: ~{time_left} minutes\n\n"
-                "Get ready for volatility! 🧨"
-            )
-            
-            try:
-                await context.bot.send_message(chat_id=chat_id, text=alert_message, parse_mode="Markdown")
-                mark_alert_as_sent(event_id)
-                print(f"✅ Alert sent for: {event_name}")
-            except Exception as e:
-                print(f"❌ Error sending message: {e}")
+        # 3. Check Market Close
+        if current_time_str == close_time:
+            alert_id = f"{today_str}_{name}_close"
+            if not is_alert_sent(alert_id):
+                msg = f"🔴 **MARKET CLOSE** 📉\n\nThe **{name}** session is now **CLOSED**. Volatility may decrease. 😴"
+                await send_telegram_msg(context, chat_id, msg, alert_id)
+
+async def send_telegram_msg(context, chat_id, message, alert_id):
+    """Sends message and marks as sent."""
+    try:
+        await context.bot.send_message(chat_id=chat_id, text=message, parse_mode="Markdown")
+        mark_alert_as_sent(alert_id)
+        logger.info(f"✅ Alert Sent: {alert_id}")
+    except Exception as e:
+        logger.error(f"❌ Error sending market alert: {e}")

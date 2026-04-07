@@ -2,8 +2,8 @@ import logging
 import os
 import asyncio
 from telegram.ext import ApplicationBuilder, CommandHandler
-from bot_logic import start_command, calendar_command, news_command
-from scheduler import high_impact_alert_task
+from bot_logic import start_command
+from scheduler import market_timing_alert_task
 from dotenv import load_dotenv
 from fastapi import FastAPI
 import uvicorn
@@ -40,14 +40,12 @@ async def run_bot():
 
     # Command handlers
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("calendar", calendar_command))
-    application.add_handler(CommandHandler("news", news_command))
 
-    # JobQueue for alerts (runs every 30 minutes)
+    # JobQueue for Market Timing (runs every 60 seconds to check for opening/closing)
     job_queue = application.job_queue
     if job_queue:
-        job_queue.run_repeating(high_impact_alert_task, interval=1800, first=10)
-        logger.info("✅ Alert scheduler started! (Checking every 30 mins)")
+        job_queue.run_repeating(market_timing_alert_task, interval=60, first=5)
+        logger.info("✅ Market Session Monitor started! (Checking every min)")
 
     # Run the bot with a simpler loop
     async with application:
