@@ -11,5 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
-# Run the bot
+# Expose port (Koyeb sets the PORT env variable)
+EXPOSE 8000
+
+# Run the bot and web service
 CMD ["python", "main.py"]
