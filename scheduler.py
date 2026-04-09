@@ -7,7 +7,7 @@ from messages.bot_text import (
     WARNING_TEXT, PREP_TEXT, OPEN_TEXT, CLOSE_TEXT,
     NY_OPEN_OVERLAP, LONDON_CLOSE_OVERLAP
 )
-from database import get_all_subscribers_data
+from database import get_all_subscribers_data, get_upcoming_events, get_holidays_for_today
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -81,6 +81,11 @@ async def market_timing_alert_task(context):
             alert_type = f"{session_name}_close"
 
         if alert_msg and alert_type:
+            # Check for holidays if it's an 'open' alert
+            if "_open" in alert_type:
+                holiday_note = await get_session_holiday_note(session_name, today_str)
+                alert_msg += holiday_note
+
             full_alert_id = f"{today_str}_{alert_type}"
             if not is_alert_sent(full_alert_id):
                 # Filter subscribers who want this session
@@ -89,18 +94,43 @@ async def market_timing_alert_task(context):
                     if s.get("preferences", {}).get(session_name, True)
                 ]
                 
-                # Add admin if not in list
-                admin_id = os.getenv("CHAT_ID")
-                if admin_id and int(admin_id) not in target_chat_ids:
-                    target_chat_ids.append(int(admin_id))
+                # Add configured group/channel and admin if not in list
+                default_chat_id = os.getenv("CHAT_ID")
+                admin_id = os.getenv("ADMIN_ID")
+                
+                # Helper to add to list if not already there
+                def add_to_targets(target_list, current_id):
+                    if not current_id: return
+                    # Convert to int if it's a numeric ID, otherwise keep as string (for @channels)
+                    try:
+                        norm_id = int(current_id)
+                    except ValueError:
+                        norm_id = current_id # e.g. "@my_channel"
+                    if norm_id not in target_list:
+                        target_list.append(norm_id)
+
+                add_to_targets(target_chat_ids, default_chat_id)
+                add_to_targets(target_chat_ids, admin_id)
 
                 await send_telegram_msg(context, target_chat_ids, alert_msg, full_alert_id)
 
     # --- SPECIAL WEEKEND ALERTS (Sent to all) ---
     all_chat_ids = [s["chat_id"] for s in subscribers]
-    admin_id = os.getenv("CHAT_ID")
-    if admin_id and int(admin_id) not in all_chat_ids:
-        all_chat_ids.append(int(admin_id))
+    
+    default_chat_id = os.getenv("CHAT_ID")
+    admin_id = os.getenv("ADMIN_ID")
+
+    def add_to_targets(target_list, current_id):
+        if not current_id: return
+        try:
+            norm_id = int(current_id)
+        except ValueError:
+            norm_id = current_id
+        if norm_id not in target_list:
+            target_list.append(norm_id)
+
+    add_to_targets(all_chat_ids, default_chat_id)
+    add_to_targets(all_chat_ids, admin_id)
 
     if weekday == 4 and current_time_str == "21:00":
         alert_id = f"{today_str}_weekend_close"
@@ -111,6 +141,78 @@ async def market_timing_alert_task(context):
         alert_id = f"{today_str}_weekend_open"
         if not is_alert_sent(alert_id):
             await send_telegram_msg(context, all_chat_ids, WEEKEND_OPEN_ALERT, alert_id)
+
+    # --- ADD HOLIDAY NOTES TO SESSION ALERTS ---
+    # We check if there's a holiday for the session currency
+    session_mapping = {
+        "Sydney 🇦🇺": ["AUD", "NZD"],
+        "Tokyo 🇯🇵": ["JPY"],
+        "London 🇬🇧": ["GBP", "EUR", "CHF"],
+        "New York 🇺🇸": ["USD", "CAD"]
+    }
+    
+    # This logic would be integrated into the session alert loop above.
+    # Let's refactor the alert loop slightly to include holiday check.
+
+async def economic_news_alert_task(context):
+    """
+    Checks for high/medium impact news every minute and sends alerts.
+    """
+    now_utc = datetime.now(timezone.utc)
+    current_time_str = now_utc.strftime("%H:%M")
+    today_str = now_utc.strftime("%Y-%m-%d")
+    
+    upcoming_events = await get_upcoming_events(current_time_str, today_str)
+    
+    if not upcoming_events:
+        return
+
+    subscribers = await get_all_subscribers_data()
+    all_chat_ids = [s["chat_id"] for s in subscribers]
+    admin_id = os.getenv("CHAT_ID")
+    if admin_id and int(admin_id) not in all_chat_ids:
+        all_chat_ids.append(int(admin_id))
+
+    for event in upcoming_events:
+        impact = event.get("impact", "").upper()
+        country = event.get("country", "")
+        title = event.get("title", "")
+        forecast = event.get("forecast", "N/A")
+        previous = event.get("previous", "N/A")
+        
+        icon = "🚨" if impact == "HIGH" else "⚠️"
+        
+        msg = (
+            f"{icon} *{impact} IMPACT NEWS*\n\n"
+            f"🌐 *Currency:* {country}\n"
+            f"📊 *Event:* {title}\n"
+            f"⏰ *Time:* {event.get('time')} (UTC)\n\n"
+            f"📉 *Forecast:* {forecast} | *Prev:* {previous}"
+        )
+        
+        alert_id = f"news_{today_str}_{country}_{title}_{current_time_str}"
+        if not is_alert_sent(alert_id):
+            await send_telegram_msg(context, all_chat_ids, msg, alert_id)
+
+async def get_session_holiday_note(session_name, today_str):
+    """Returns a holiday note if the session's currency has a holiday today."""
+    session_mapping = {
+        "Sydney 🇦🇺": ["AUD", "NZD"],
+        "Tokyo 🇯🇵": ["JPY"],
+        "London 🇬🇧": ["GBP", "EUR", "CHF"],
+        "New York 🇺🇸": ["USD", "CAD"]
+    }
+    
+    currencies = session_mapping.get(session_name, [])
+    holidays = await get_holidays_for_today(today_str)
+    
+    active_holidays = [h for h in holidays if h.get("country") in currencies]
+    
+    if active_holidays:
+        countries = ", ".join(set([h.get("country") for h in active_holidays]))
+        return f"\n\n⚠️ *Note:* Today is a Bank Holiday in ({countries}). Expect lower liquidity and slower movement in this session."
+    
+    return ""
 
 async def send_telegram_msg(context, chat_ids, message, alert_id):
     """Broadcasts message to all subscribers and marks as sent."""

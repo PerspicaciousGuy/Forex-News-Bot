@@ -7,7 +7,7 @@ from commands.stop import stop_command
 from commands.sessions import sessions_command
 from commands.settings import get_settings_handlers
 from commands.admin import get_admin_handlers
-from scheduler import market_timing_alert_task
+from scheduler import market_timing_alert_task, economic_news_alert_task
 from dotenv import load_dotenv
 from fastapi import FastAPI
 import uvicorn
@@ -57,7 +57,8 @@ async def run_bot():
     job_queue = application.job_queue
     if job_queue:
         job_queue.run_repeating(market_timing_alert_task, interval=60, first=5)
-        logger.info("✅ Market Session Monitor started! (Checking every min)")
+        job_queue.run_repeating(economic_news_alert_task, interval=60, first=10)
+        logger.info("✅ Market Session & News Monitor started!")
 
     # Run the bot with a simpler loop
     async with application:

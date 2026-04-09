@@ -17,6 +17,8 @@ COLLECTION_NAME = "subscribers"
 client = AsyncIOMotorClient(MONGO_URI)
 db = client[DB_NAME]
 subscribers = db[COLLECTION_NAME]
+calendar_collection = db["economic_calendar"]
+
 
 # To avoid duplicate alerts within the same minute
 SENT_ALERTS_FILE = "sent_market_alerts.txt"
@@ -92,4 +94,64 @@ async def get_all_subscribers_data():
         return await cursor.to_list(length=1000)
     except Exception as e:
         logger.error(f"Error fetching subscriber data: {e}")
+        return []
+
+# --- ECONOMIC CALENDAR FUNCTIONS ---
+
+async def save_news_events(events):
+    """
+    Clears the current calendar and saves new events.
+    Filter: Only High, Medium impact and Bank Holidays.
+    """
+    try:
+        # Filter relevant events
+        # Note: Forex Factory JSON uses 'High', 'Medium', 'Low', 'Holiday'
+        relevant_impacts = ["High", "Medium", "Holiday"]
+        filtered_events = [
+            e for e in events 
+            if e.get("impact") in relevant_impacts
+        ]
+
+        if not filtered_events:
+            return 0
+
+        # Replace all existing news
+        await calendar_collection.delete_many({})
+        await calendar_collection.insert_many(filtered_events)
+        logger.info(f"Successfully saved {len(filtered_events)} news events.")
+        return len(filtered_events)
+    except Exception as e:
+        logger.error(f"Error saving news events: {e}")
+        return 0
+
+async def get_upcoming_events(current_time_str, date_str):
+    """
+    Fetches news events for a specific time and date.
+    """
+    try:
+        # We look for events matching the exact hour:minute and date
+        # Forex Factory JSON format: date: "Apr 9, 2026", time: "6:00pm"
+        # We will normalize this during parsing, but for now we query directly.
+        cursor = calendar_collection.find({
+            "normalized_date": date_str,
+            "normalized_time": current_time_str,
+            "impact": {"$in": ["High", "Medium"]}
+        })
+        return await cursor.to_list(length=20)
+    except Exception as e:
+        logger.error(f"Error fetching upcoming news: {e}")
+        return []
+
+async def get_holidays_for_today(date_str):
+    """
+    Fetches Bank Holidays for a specific date.
+    """
+    try:
+        cursor = calendar_collection.find({
+            "normalized_date": date_str,
+            "impact": "Holiday"
+        })
+        return await cursor.to_list(length=10)
+    except Exception as e:
+        logger.error(f"Error fetching holidays: {e}")
         return []
