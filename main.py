@@ -1,12 +1,13 @@
 import logging
 import os
 import asyncio
-from telegram.ext import ApplicationBuilder, CommandHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 from commands.start import start_command
 from commands.stop import stop_command
 from commands.sessions import sessions_command
 from commands.settings import get_settings_handlers
 from commands.admin import get_admin_handlers
+from commands.upload import upload_calendar_handler
 from scheduler import market_timing_alert_task, economic_news_alert_task
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -52,13 +53,16 @@ async def run_bot():
         application.add_handler(handler)
     for handler in get_admin_handlers():
         application.add_handler(handler)
+    
+    # Document handler for JSON calendar files
+    application.add_handler(MessageHandler(filters.Document.MimeType("application/json"), upload_calendar_handler))
 
     # JobQueue for Market Timing (runs every 60 seconds to check for opening/closing)
     job_queue = application.job_queue
     if job_queue:
         job_queue.run_repeating(market_timing_alert_task, interval=60, first=5)
         job_queue.run_repeating(economic_news_alert_task, interval=60, first=10)
-        logger.info("✅ Market Session & News Monitor started!")
+        logger.info("✅ Market Session & Economic News monitors started!")
 
     # Run the bot with a simpler loop
     async with application:

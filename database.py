@@ -106,7 +106,7 @@ async def save_news_events(events):
     try:
         # Filter relevant events
         # Note: Forex Factory JSON uses 'High', 'Medium', 'Low', 'Holiday'
-        relevant_impacts = ["High", "Medium", "Holiday"]
+        relevant_impacts = ["High", "Holiday"]
         filtered_events = [
             e for e in events 
             if e.get("impact") in relevant_impacts
@@ -135,7 +135,7 @@ async def get_upcoming_events(current_time_str, date_str):
         cursor = calendar_collection.find({
             "normalized_date": date_str,
             "normalized_time": current_time_str,
-            "impact": {"$in": ["High", "Medium"]}
+            "impact": "High"
         })
         return await cursor.to_list(length=20)
     except Exception as e:

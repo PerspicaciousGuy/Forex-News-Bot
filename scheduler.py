@@ -156,7 +156,7 @@ async def market_timing_alert_task(context):
 
 async def economic_news_alert_task(context):
     """
-    Checks for high/medium impact news every minute and sends alerts.
+    Checks for high impact news every minute and sends alerts.
     """
     now_utc = datetime.now(timezone.utc)
     current_time_str = now_utc.strftime("%H:%M")
