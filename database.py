@@ -26,6 +26,7 @@ SENT_ALERTS_FILE = "sent_market_alerts.txt"
 DEFAULT_PREFERENCES = {
     "Sydney 🇦🇺": True,
     "Tokyo 🇯🇵": True,
+    "Frankfurt 🇩🇪": True,
     "London 🇬🇧": True,
     "New York 🇺🇸": True
 }
@@ -101,7 +102,7 @@ async def get_all_subscribers_data():
 async def save_news_events(events):
     """
     Clears the current calendar and saves new events.
-    Filter: Only High, Medium impact and Bank Holidays.
+    Filter: Only High impact (Red) and Bank Holidays (Grey).
     """
     try:
         # Filter relevant events

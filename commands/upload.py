@@ -71,7 +71,7 @@ async def upload_calendar_handler(update: Update, context: ContextTypes.DEFAULT_
         
         await status_msg.edit_text(
             f"✅ *Calendar Updated!*\n\n"
-            f"📊 Imported: `{count}` high/medium impact events.\n"
+            f"📊 Imported: `{count}` High Impact (Red) & Holiday (Grey) events.\n"
             f"🚀 The bot will now monitor and alert for these events 0-15 minutes before they occur.",
             parse_mode="Markdown"
         )

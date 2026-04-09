@@ -22,10 +22,11 @@ SENT_ALERTS_FILE = "sent_market_alerts.txt"
 # New York (EDT = UTC-4): 12:00 - 21:00 UTC
 
 MARKET_SESSIONS = [
-    {"name": "Sydney 🇦🇺", "open": "22:00", "close": "07:00"},
-    {"name": "Tokyo 🇯🇵", "open": "00:00", "close": "09:00"},
-    {"name": "London 🇬🇧", "open": "07:00", "close": "16:00"},
-    {"name": "New York 🇺🇸", "open": "12:00", "close": "21:00"},
+    {"name": "Sydney 🇦🇺", "open": "22:00", "close": "06:00"},
+    {"name": "Tokyo 🇯🇵", "open": "23:00", "close": "07:00"},
+    {"name": "Frankfurt 🇩🇪", "open": "06:00", "close": "14:00"},
+    {"name": "London 🇬🇧", "open": "07:00", "close": "15:00"},
+    {"name": "New York 🇺🇸", "open": "12:00", "close": "20:00"},
 ]
 
 def is_alert_sent(alert_id):
@@ -142,17 +143,7 @@ async def market_timing_alert_task(context):
         if not is_alert_sent(alert_id):
             await send_telegram_msg(context, all_chat_ids, WEEKEND_OPEN_ALERT, alert_id)
 
-    # --- ADD HOLIDAY NOTES TO SESSION ALERTS ---
-    # We check if there's a holiday for the session currency
-    session_mapping = {
-        "Sydney 🇦🇺": ["AUD", "NZD"],
-        "Tokyo 🇯🇵": ["JPY"],
-        "London 🇬🇧": ["GBP", "EUR", "CHF"],
-        "New York 🇺🇸": ["USD", "CAD"]
-    }
-    
-    # This logic would be integrated into the session alert loop above.
-    # Let's refactor the alert loop slightly to include holiday check.
+
 
 async def economic_news_alert_task(context):
     """
@@ -199,6 +190,7 @@ async def get_session_holiday_note(session_name, today_str):
     session_mapping = {
         "Sydney 🇦🇺": ["AUD", "NZD"],
         "Tokyo 🇯🇵": ["JPY"],
+        "Frankfurt 🇩🇪": ["EUR"],
         "London 🇬🇧": ["GBP", "EUR", "CHF"],
         "New York 🇺🇸": ["USD", "CAD"]
     }
