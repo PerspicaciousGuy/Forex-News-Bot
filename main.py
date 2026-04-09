@@ -3,6 +3,7 @@ import os
 import asyncio
 from telegram.ext import ApplicationBuilder, CommandHandler
 from commands.start import start_command
+from commands.stop import stop_command
 from commands.sessions import sessions_command
 from scheduler import market_timing_alert_task
 from dotenv import load_dotenv
@@ -41,6 +42,7 @@ async def run_bot():
 
     # Command handlers
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("stop", stop_command))
     application.add_handler(CommandHandler("sessions", sessions_command))
 
     # JobQueue for Market Timing (runs every 60 seconds to check for opening/closing)

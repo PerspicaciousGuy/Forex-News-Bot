@@ -7,6 +7,7 @@ from messages.bot_text import (
     WARNING_TEXT, PREP_TEXT, OPEN_TEXT, CLOSE_TEXT,
     NY_OPEN_OVERLAP, LONDON_CLOSE_OVERLAP
 )
+from database import get_all_subscribers
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -48,16 +49,28 @@ async def market_timing_alert_task(context):
     today_str = now_utc.strftime("%Y-%m-%d")
     weekday = now_utc.weekday()
     
-    chat_id = os.getenv("CHAT_ID")
-    if not chat_id:
-        logger.error("❌ CHAT_ID not set!")
+    # Get all human subscribers from MongoDB
+    subscriber_ids = await get_all_subscribers()
+    
+    # Add the system CHAT_ID if set (for admin groups/legacy support)
+    admin_chat_id = os.getenv("CHAT_ID")
+    if admin_chat_id:
+        try:
+            subscriber_ids.append(int(admin_chat_id))
+        except ValueError:
+            pass
+            
+    # Remove duplicates
+    subscriber_ids = list(set(subscriber_ids))
+
+    if not subscriber_ids:
         return
 
     # --- SPECIAL WEEKEND ALERTS ---
     if weekday == 4 and current_time_str == "21:00":
         alert_id = f"{today_str}_weekend_close"
         if not is_alert_sent(alert_id):
-            await send_telegram_msg(context, chat_id, WEEKEND_CLOSE_ALERT, alert_id)
+            await send_telegram_msg(context, subscriber_ids, WEEKEND_CLOSE_ALERT, alert_id)
         return
 
     if weekday == 5 or (weekday == 6 and current_time_str < "21:30") or (weekday == 4 and current_time_str > "21:00"):
@@ -66,7 +79,7 @@ async def market_timing_alert_task(context):
     if weekday == 6 and current_time_str == "21:30":
         alert_id = f"{today_str}_weekend_open"
         if not is_alert_sent(alert_id):
-            await send_telegram_msg(context, chat_id, WEEKEND_OPEN_ALERT, alert_id)
+            await send_telegram_msg(context, subscriber_ids, WEEKEND_OPEN_ALERT, alert_id)
         return
 
     # --- STANDARD SESSION ALERTS ---
@@ -87,33 +100,41 @@ async def market_timing_alert_task(context):
         if current_time_str == warning_30m_dt:
             alert_id = f"{today_str}_{name}_30min_warning"
             if not is_alert_sent(alert_id):
-                await send_telegram_msg(context, chat_id, WARNING_TEXT.format(name=display_name), alert_id)
+                await send_telegram_msg(context, subscriber_ids, WARNING_TEXT.format(name=display_name), alert_id)
 
         # 2. 5-min Prep
         if current_time_str == warning_5m_dt:
             alert_id = f"{today_str}_{name}_5min_warning"
             if not is_alert_sent(alert_id):
-                await send_telegram_msg(context, chat_id, PREP_TEXT.format(name=display_name), alert_id)
+                await send_telegram_msg(context, subscriber_ids, PREP_TEXT.format(name=display_name), alert_id)
 
         # 3. Market Open
         if current_time_str == open_time:
             alert_id = f"{today_str}_{name}_open"
             if not is_alert_sent(alert_id):
                 msg = NY_OPEN_OVERLAP if name == "New York 🇺🇸" else OPEN_TEXT.format(name=name)
-                await send_telegram_msg(context, chat_id, msg, alert_id)
+                await send_telegram_msg(context, subscriber_ids, msg, alert_id)
 
         # 4. Market Close
         if current_time_str == close_time:
             alert_id = f"{today_str}_{name}_close"
             if not is_alert_sent(alert_id):
                 msg = LONDON_CLOSE_OVERLAP if name == "London 🇬🇧" else CLOSE_TEXT.format(name=name)
-                await send_telegram_msg(context, chat_id, msg, alert_id)
+                await send_telegram_msg(context, subscriber_ids, msg, alert_id)
 
-async def send_telegram_msg(context, chat_id, message, alert_id):
-    """Sends message and marks as sent."""
-    try:
-        await context.bot.send_message(chat_id=chat_id, text=message, parse_mode="Markdown")
+async def send_telegram_msg(context, chat_ids, message, alert_id):
+    """Broadcasts message to all subscribers and marks as sent."""
+    if isinstance(chat_ids, (int, str)):
+        chat_ids = [chat_ids]
+
+    success_count = 0
+    for chat_id in chat_ids:
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=message, parse_mode="Markdown")
+            success_count += 1
+        except Exception as e:
+            logger.error(f"❌ Error sending to {chat_id}: {e}")
+
+    if success_count > 0:
         mark_alert_as_sent(alert_id)
-        logger.info(f"✅ Alert Sent: {alert_id}")
-    except Exception as e:
-        logger.error(f"❌ Error sending market alert: {e}")
+        logger.info(f"✅ Broadcast Sent: {alert_id} to {success_count} users.")
