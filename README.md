@@ -11,26 +11,36 @@ The bot tracks the four major global market sessions: Sydney, Tokyo, London, and
 - Market Open: Notification sent the moment a session officially begins.
 - Market Close: Notification sent the moment a session ends.
 
-### 2. High Volatility Overlap Alerts
-The bot specifically identifies the London and New York session overlap, which is the period of highest liquidity and volatility in the Forex market.
+### 2. User Personalization & Scalability
+- **Session Filtering**: Use `/settings` to toggle specific market alerts (Tokyo, London, etc.) on or off.
+- **Multi-User Support**: Powered by MongoDB, the bot handles thousands of subscribers simultaneously.
+- **Stop Command**: Use `/stop` to easily unsubscribe and remove your data.
 
-### 3. Weekend Mode
-To maintain a clean and professional experience, the bot includes a specialized weekend handler:
-- Friday Market Wrap: Sends a notification at 21:00 UTC (New York Close) once the markets close for the weekend.
-- Sunday Market Open: Sends a notification at 21:30 UTC just before the new trading week begins with the Sydney open.
-- Silent Saturdays: Automated session alerts are automatically disabled during the weekend.
+### 3. Administrative Dashboard
+- **Bot Statistics**: Admins can use `/stats` to view total subscriber growth and system status.
 
-### 4. Interactive Commands
-- /start: Welcomes the user and explains the bot's capabilities.
-- /sessions: Provides a live real-time status of all four major markets, showing which sessions are currently open or closed and their respective trading hours.
+### 4. High Volatility Overlap Alerts
+- **London/NY Overlap**: Specialized alerts for the period of highest liquidity.
+- **Grouped Notifications**: Smart logic combines overlapping alerts to reduce notification clutter.
+
+### 5. Weekend Mode
+- Friday Market Wrap: 21:00 UTC (New York Close).
+- Sunday Market Open: 21:30 UTC (Sydney Pre-Open).
+- Silent Weekends: No noise during non-trading hours.
+
+## Interactive Commands
+- `/start`: Onboard and register for alerts.
+- `/settings`: Personalize your market alert preferences.
+- `/sessions`: Check current live market status.
+- `/stop`: Unsubscribe from all alerts.
+- `/stats` (Admin): View global bot statistics.
 
 ## Project Architecture
-
-The codebase is organized into a modular structure for easy maintenance and scalability:
-- commands/: Contains individual logic files for each Telegram command.
-- messages/: Centralized one-file repository for all bot communication text.
-- scheduler.py: The background monitoring engine that handles all temporal calculations and alerts.
-- main.py: The entry point that initializes the Telegram application and the FastAPI health-check server.
+- `database.py`: Asynchronous MongoDB driver for subscriber management.
+- `commands/`: Modular command handlers for start, stop, sessions, settings, and admin.
+- `scheduler.py`: The background engine managing precision timing and filtered broadcasts.
+- `messages/`: Central repository for all professional bot communication.
+- `main.py`: The entry point that initializes the Telegram application and the FastAPI health-check server.
 
 ## Installation and Setup
 
@@ -40,9 +50,9 @@ The codebase is organized into a modular structure for easy maintenance and scal
 - A designated Telegram Chat ID (Group or Channel).
 
 ### Required Environment Variables
-Create a .env file in the root directory with the following keys:
-- TELEGRAM_BOT_TOKEN: Your unique API token from @BotFather.
-- CHAT_ID: The numeric ID of the group or channel where you want the alerts delivered.
+- `TELEGRAM_BOT_TOKEN`: API token from @BotFather.
+- `MONGO_URI`: MongoDB connection string.
+- `CHAT_ID`: Admin Chat ID for dashboard access.
 
 ### Running Locally
 1. Install dependencies:

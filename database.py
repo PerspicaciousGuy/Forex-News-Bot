@@ -18,19 +18,52 @@ client = AsyncIOMotorClient(MONGO_URI)
 db = client[DB_NAME]
 subscribers = db[COLLECTION_NAME]
 
+# To avoid duplicate alerts within the same minute
+SENT_ALERTS_FILE = "sent_market_alerts.txt"
+
+DEFAULT_PREFERENCES = {
+    "Sydney 🇦🇺": True,
+    "Tokyo 🇯🇵": True,
+    "London 🇬🇧": True,
+    "New York 🇺🇸": True
+}
+
 async def add_subscriber(chat_id):
-    """Adds a chat ID to the database if it doesn't already exist."""
+    """Adds a chat ID to the database with default preferences."""
     try:
         # Check if already exists
         exists = await subscribers.find_one({"chat_id": chat_id})
         if not exists:
-            await subscribers.insert_one({"chat_id": chat_id})
+            await subscribers.insert_one({
+                "chat_id": chat_id,
+                "preferences": DEFAULT_PREFERENCES.copy()
+            })
             logger.info(f"New subscriber added: {chat_id}")
             return True
         return False
     except Exception as e:
         logger.error(f"Error adding subscriber {chat_id}: {e}")
         return False
+
+async def get_subscriber_prefs(chat_id):
+    """Fetches preferences for a specific subscriber."""
+    user = await subscribers.find_one({"chat_id": chat_id})
+    if user and "preferences" in user:
+        return user["preferences"]
+    return DEFAULT_PREFERENCES.copy()
+
+async def update_subscriber_prefs(chat_id, preferences):
+    """Updates session preferences for a user."""
+    await subscribers.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"preferences": preferences}},
+        upsert=True
+    )
+
+async def get_bot_stats():
+    """Fetches general bot statistics."""
+    total_users = await subscribers.count_documents({})
+    return {"total_users": total_users}
 
 async def remove_subscriber(chat_id):
     """Removes a chat ID from the database."""
@@ -50,4 +83,13 @@ async def get_all_subscribers():
         return [r["chat_id"] for r in results]
     except Exception as e:
         logger.error(f"Error fetching subscribers: {e}")
+        return []
+
+async def get_all_subscribers_data():
+    """Returns all subscriber documents."""
+    try:
+        cursor = subscribers.find({})
+        return await cursor.to_list(length=1000)
+    except Exception as e:
+        logger.error(f"Error fetching subscriber data: {e}")
         return []

@@ -7,7 +7,7 @@ from messages.bot_text import (
     WARNING_TEXT, PREP_TEXT, OPEN_TEXT, CLOSE_TEXT,
     NY_OPEN_OVERLAP, LONDON_CLOSE_OVERLAP
 )
-from database import get_all_subscribers
+from database import get_all_subscribers_data
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -49,78 +49,68 @@ async def market_timing_alert_task(context):
     today_str = now_utc.strftime("%Y-%m-%d")
     weekday = now_utc.weekday()
     
-    # Get all human subscribers from MongoDB
-    subscriber_ids = await get_all_subscribers()
+    # Get all subscribers with preferences from MongoDB
+    subscribers = await get_all_subscribers_data()
     
-    # Add the system CHAT_ID if set (for admin groups/legacy support)
-    admin_chat_id = os.getenv("CHAT_ID")
-    if admin_chat_id:
-        try:
-            subscriber_ids.append(int(admin_chat_id))
-        except ValueError:
-            pass
-            
-    # Remove duplicates
-    subscriber_ids = list(set(subscriber_ids))
-
-    if not subscriber_ids:
-        return
-
-    # --- SPECIAL WEEKEND ALERTS ---
-    if weekday == 4 and current_time_str == "21:00":
-        alert_id = f"{today_str}_weekend_close"
-        if not is_alert_sent(alert_id):
-            await send_telegram_msg(context, subscriber_ids, WEEKEND_CLOSE_ALERT, alert_id)
-        return
-
-    if weekday == 5 or (weekday == 6 and current_time_str < "21:30") or (weekday == 4 and current_time_str > "21:00"):
-        return
-
-    if weekday == 6 and current_time_str == "21:30":
-        alert_id = f"{today_str}_weekend_open"
-        if not is_alert_sent(alert_id):
-            await send_telegram_msg(context, subscriber_ids, WEEKEND_OPEN_ALERT, alert_id)
-        return
-
-    # --- STANDARD SESSION ALERTS ---
+    # Process for each session alert
     for session in MARKET_SESSIONS:
-        name = session["name"]
+        session_name = session["name"]
+        
+        # Determine current alert type
         open_time = session["open"]
         close_time = session["close"]
-
-        # Parse times to handle warnings
         open_dt = datetime.strptime(open_time, "%H:%M")
         warning_30m_dt = (open_dt - timedelta(minutes=30)).strftime("%H:%M")
         warning_5m_dt = (open_dt - timedelta(minutes=5)).strftime("%H:%M")
 
-        # 🚀 Special Display Name for New York alerts to handle the Overlap
-        display_name = f"{name} (London/NY Overlap 🚀🚀)" if name == "New York 🇺🇸" else name
+        alert_msg = None
+        alert_type = None
+        display_name = f"{session_name} (London/NY Overlap 🚀🚀)" if session_name == "New York 🇺🇸" else session_name
 
-        # 1. 30-min Warning
         if current_time_str == warning_30m_dt:
-            alert_id = f"{today_str}_{name}_30min_warning"
-            if not is_alert_sent(alert_id):
-                await send_telegram_msg(context, subscriber_ids, WARNING_TEXT.format(name=display_name), alert_id)
+            alert_msg = WARNING_TEXT.format(name=display_name)
+            alert_type = f"{session_name}_30min"
+        elif current_time_str == warning_5m_dt:
+            alert_msg = PREP_TEXT.format(name=display_name)
+            alert_type = f"{session_name}_5min"
+        elif current_time_str == open_time:
+            alert_msg = NY_OPEN_OVERLAP if session_name == "New York 🇺🇸" else OPEN_TEXT.format(name=session_name)
+            alert_type = f"{session_name}_open"
+        elif current_time_str == close_time:
+            alert_msg = LONDON_CLOSE_OVERLAP if session_name == "London 🇬🇧" else CLOSE_TEXT.format(name=session_name)
+            alert_type = f"{session_name}_close"
 
-        # 2. 5-min Prep
-        if current_time_str == warning_5m_dt:
-            alert_id = f"{today_str}_{name}_5min_warning"
-            if not is_alert_sent(alert_id):
-                await send_telegram_msg(context, subscriber_ids, PREP_TEXT.format(name=display_name), alert_id)
+        if alert_msg and alert_type:
+            full_alert_id = f"{today_str}_{alert_type}"
+            if not is_alert_sent(full_alert_id):
+                # Filter subscribers who want this session
+                target_chat_ids = [
+                    s["chat_id"] for s in subscribers 
+                    if s.get("preferences", {}).get(session_name, True)
+                ]
+                
+                # Add admin if not in list
+                admin_id = os.getenv("CHAT_ID")
+                if admin_id and int(admin_id) not in target_chat_ids:
+                    target_chat_ids.append(int(admin_id))
 
-        # 3. Market Open
-        if current_time_str == open_time:
-            alert_id = f"{today_str}_{name}_open"
-            if not is_alert_sent(alert_id):
-                msg = NY_OPEN_OVERLAP if name == "New York 🇺🇸" else OPEN_TEXT.format(name=name)
-                await send_telegram_msg(context, subscriber_ids, msg, alert_id)
+                await send_telegram_msg(context, target_chat_ids, alert_msg, full_alert_id)
 
-        # 4. Market Close
-        if current_time_str == close_time:
-            alert_id = f"{today_str}_{name}_close"
-            if not is_alert_sent(alert_id):
-                msg = LONDON_CLOSE_OVERLAP if name == "London 🇬🇧" else CLOSE_TEXT.format(name=name)
-                await send_telegram_msg(context, subscriber_ids, msg, alert_id)
+    # --- SPECIAL WEEKEND ALERTS (Sent to all) ---
+    all_chat_ids = [s["chat_id"] for s in subscribers]
+    admin_id = os.getenv("CHAT_ID")
+    if admin_id and int(admin_id) not in all_chat_ids:
+        all_chat_ids.append(int(admin_id))
+
+    if weekday == 4 and current_time_str == "21:00":
+        alert_id = f"{today_str}_weekend_close"
+        if not is_alert_sent(alert_id):
+            await send_telegram_msg(context, all_chat_ids, WEEKEND_CLOSE_ALERT, alert_id)
+    
+    if weekday == 6 and current_time_str == "21:30":
+        alert_id = f"{today_str}_weekend_open"
+        if not is_alert_sent(alert_id):
+            await send_telegram_msg(context, all_chat_ids, WEEKEND_OPEN_ALERT, alert_id)
 
 async def send_telegram_msg(context, chat_ids, message, alert_id):
     """Broadcasts message to all subscribers and marks as sent."""
