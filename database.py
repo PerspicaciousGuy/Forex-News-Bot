@@ -49,11 +49,17 @@ async def add_subscriber(chat_id):
         return False
 
 async def get_subscriber_prefs(chat_id):
-    """Fetches preferences for a specific subscriber."""
+    """Fetches preferences for a specific subscriber, ensuring all default sessions exist."""
     user = await subscribers.find_one({"chat_id": chat_id})
+    
+    # Start with a copy of defaults
+    prefs = DEFAULT_PREFERENCES.copy()
+    
+    # Overwrite with saved user preferences if they exist
     if user and "preferences" in user:
-        return user["preferences"]
-    return DEFAULT_PREFERENCES.copy()
+        prefs.update(user["preferences"])
+        
+    return prefs
 
 async def update_subscriber_prefs(chat_id, preferences):
     """Updates session preferences for a user."""
