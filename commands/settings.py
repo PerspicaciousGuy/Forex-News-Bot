@@ -14,7 +14,7 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for session, enabled in prefs.items():
         status = "✅" if enabled else "❌"
         # Toggle logic: if we click it, we flip the value
-        keyboard.append([InlineKeyboardButton(f"{session}: {status}", callback_query_action=f"toggle_{session}")])
+        keyboard.append([InlineKeyboardButton(f"{session}: {status}", callback_data=f"toggle_{session}")])
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
