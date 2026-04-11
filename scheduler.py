@@ -53,67 +53,78 @@ async def market_timing_alert_task(context):
     # Get all subscribers with preferences from MongoDB
     subscribers = await get_all_subscribers_data()
     
-    # Process for each session alert
-    for session in MARKET_SESSIONS:
-        session_name = session["name"]
-        
-        # Determine current alert type
-        open_time = session["open"]
-        close_time = session["close"]
-        open_dt = datetime.strptime(open_time, "%H:%M")
-        warning_30m_dt = (open_dt - timedelta(minutes=30)).strftime("%H:%M")
-        warning_5m_dt = (open_dt - timedelta(minutes=5)).strftime("%H:%M")
+    # --- MARKET SESSION ALERTS ---
+    # Forex Market is closed from Friday 21:00 UTC to Sunday 21:00 UTC
+    is_market_closed = False
+    if weekday == 5:  # Saturday
+        is_market_closed = True
+    elif weekday == 4 and now_utc.hour >= 21:  # Friday late night
+        is_market_closed = True
+    elif weekday == 6 and now_utc.hour < 21:  # Sunday morning/afternoon
+        is_market_closed = True
 
-        alert_msg = None
-        alert_type = None
-        display_name = f"{session_name} (London/NY Overlap 🚀🚀)" if session_name == "New York 🇺🇸" else session_name
+    if not is_market_closed:
+        # Process for each session alert
+        for session in MARKET_SESSIONS:
+            session_name = session["name"]
+            
+            # Determine current alert type
+            open_time = session["open"]
+            close_time = session["close"]
+            open_dt = datetime.strptime(open_time, "%H:%M")
+            warning_30m_dt = (open_dt - timedelta(minutes=30)).strftime("%H:%M")
+            warning_5m_dt = (open_dt - timedelta(minutes=5)).strftime("%H:%M")
 
-        if current_time_str == warning_30m_dt:
-            alert_msg = WARNING_TEXT.format(name=display_name)
-            alert_type = f"{session_name}_30min"
-        elif current_time_str == warning_5m_dt:
-            alert_msg = PREP_TEXT.format(name=display_name)
-            alert_type = f"{session_name}_5min"
-        elif current_time_str == open_time:
-            alert_msg = NY_OPEN_OVERLAP if session_name == "New York 🇺🇸" else OPEN_TEXT.format(name=session_name)
-            alert_type = f"{session_name}_open"
-        elif current_time_str == close_time:
-            alert_msg = LONDON_CLOSE_OVERLAP if session_name == "London 🇬🇧" else CLOSE_TEXT.format(name=session_name)
-            alert_type = f"{session_name}_close"
+            alert_msg = None
+            alert_type = None
+            display_name = f"{session_name} (London/NY Overlap 🚀🚀)" if session_name == "New York 🇺🇸" else session_name
 
-        if alert_msg and alert_type:
-            # Check for holidays if it's an 'open' alert
-            if "_open" in alert_type:
-                holiday_note = await get_session_holiday_note(session_name, today_str)
-                alert_msg += holiday_note
+            if current_time_str == warning_30m_dt:
+                alert_msg = WARNING_TEXT.format(name=display_name)
+                alert_type = f"{session_name}_30min"
+            elif current_time_str == warning_5m_dt:
+                alert_msg = PREP_TEXT.format(name=display_name)
+                alert_type = f"{session_name}_5min"
+            elif current_time_str == open_time:
+                alert_msg = NY_OPEN_OVERLAP if session_name == "New York 🇺🇸" else OPEN_TEXT.format(name=session_name)
+                alert_type = f"{session_name}_open"
+            elif current_time_str == close_time:
+                alert_msg = LONDON_CLOSE_OVERLAP if session_name == "London 🇬🇧" else CLOSE_TEXT.format(name=session_name)
+                alert_type = f"{session_name}_close"
 
-            full_alert_id = f"{today_str}_{alert_type}"
-            if not is_alert_sent(full_alert_id):
-                # Filter subscribers who want this session
-                target_chat_ids = [
-                    s["chat_id"] for s in subscribers 
-                    if s.get("preferences", {}).get(session_name, True)
-                ]
-                
-                # Add configured group/channel and admin if not in list
-                default_chat_id = os.getenv("CHAT_ID")
-                admin_id = os.getenv("ADMIN_ID")
-                
-                # Helper to add to list if not already there
-                def add_to_targets(target_list, current_id):
-                    if not current_id: return
-                    # Convert to int if it's a numeric ID, otherwise keep as string (for @channels)
-                    try:
-                        norm_id = int(current_id)
-                    except ValueError:
-                        norm_id = current_id # e.g. "@my_channel"
-                    if norm_id not in target_list:
-                        target_list.append(norm_id)
+            if alert_msg and alert_type:
+                # Check for holidays if it's an 'open' alert
+                if "_open" in alert_type:
+                    holiday_note = await get_session_holiday_note(session_name, today_str)
+                    alert_msg += holiday_note
 
-                add_to_targets(target_chat_ids, default_chat_id)
-                add_to_targets(target_chat_ids, admin_id)
+                full_alert_id = f"{today_str}_{alert_type}"
+                if not is_alert_sent(full_alert_id):
+                    # Filter subscribers who want this session
+                    target_chat_ids = [
+                        s["chat_id"] for s in subscribers 
+                        if s.get("preferences", {}).get(session_name, True)
+                    ]
+                    
+                    # Add configured group/channel and admin if not in list
+                    default_chat_id = os.getenv("CHAT_ID")
+                    admin_id = os.getenv("ADMIN_ID")
+                    
+                    # Helper to add to list if not already there
+                    def add_to_targets(target_list, current_id):
+                        if not current_id: return
+                        # Convert to int if it's a numeric ID, otherwise keep as string (for @channels)
+                        try:
+                            norm_id = int(current_id)
+                        except ValueError:
+                            norm_id = current_id # e.g. "@my_channel"
+                        if norm_id not in target_list:
+                            target_list.append(norm_id)
 
-                await send_telegram_msg(context, target_chat_ids, alert_msg, full_alert_id)
+                    add_to_targets(target_chat_ids, default_chat_id)
+                    add_to_targets(target_chat_ids, admin_id)
+
+                    await send_telegram_msg(context, target_chat_ids, alert_msg, full_alert_id)
 
     # --- SPECIAL WEEKEND ALERTS (Sent to all) ---
     all_chat_ids = [s["chat_id"] for s in subscribers]
@@ -152,6 +163,11 @@ async def economic_news_alert_task(context):
     now_utc = datetime.now(timezone.utc)
     current_time_str = now_utc.strftime("%H:%M")
     today_str = now_utc.strftime("%Y-%m-%d")
+    weekday = now_utc.weekday()
+    
+    # Skip news alerts on Saturday and Sunday morning
+    if weekday == 5 or (weekday == 6 and now_utc.hour < 20):
+        return
     
     upcoming_events = await get_upcoming_events(current_time_str, today_str)
     
