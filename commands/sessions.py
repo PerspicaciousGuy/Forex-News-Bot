@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from telegram import Update
 from telegram.ext import ContextTypes
-from scheduler import MARKET_SESSIONS
+from database import get_market_sessions
 from messages.bot_text import SESSION_HEADER, SESSION_FOOTER, WEEKEND_MESSAGE
 
 async def sessions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -25,9 +25,12 @@ async def sessions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(WEEKEND_MESSAGE, parse_mode="Markdown")
         return
 
+    # Fetch dynamic sessions from DB
+    market_sessions = await get_market_sessions()
+
     response = SESSION_HEADER
     
-    for session in MARKET_SESSIONS:
+    for session in market_sessions:
         name = session["name"]
         open_time = session["open"]
         close_time = session["close"]
