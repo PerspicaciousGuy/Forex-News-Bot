@@ -7,7 +7,10 @@ from messages.bot_text import (
     WARNING_TEXT, PREP_TEXT, OPEN_TEXT, CLOSE_TEXT,
     NY_OPEN_OVERLAP, LONDON_CLOSE_OVERLAP
 )
-from database import get_all_subscribers_data, get_upcoming_events, get_holidays_for_today
+from database import (
+    get_all_subscribers_data, get_upcoming_events, 
+    get_holidays_for_today, get_market_sessions
+)
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -15,19 +18,7 @@ logger = logging.getLogger(__name__)
 # To avoid duplicate alerts within the same minute
 SENT_ALERTS_FILE = "sent_market_alerts.txt"
 
-# --- MARKET SESSIONS CONFIGURATION (UTC) ---
-# Sydney (AEST = UTC+10): 22:00 - 07:00 UTC
-# Tokyo (JST = UTC+9): 00:00 - 09:00 UTC
-# London (BST = UTC+1): 07:00 - 16:00 UTC
-# New York (EDT = UTC-4): 12:00 - 21:00 UTC
-
-MARKET_SESSIONS = [
-    {"name": "Sydney 🇦🇺", "open": "22:00", "close": "06:00"},
-    {"name": "Tokyo 🇯🇵", "open": "23:00", "close": "07:00"},
-    {"name": "Frankfurt 🇩🇪", "open": "06:00", "close": "14:00"},
-    {"name": "London 🇬🇧", "open": "07:00", "close": "15:00"},
-    {"name": "New York 🇺🇸", "open": "12:00", "close": "20:00"},
-]
+# Market sessions are now fetched dynamically from MongoDB
 
 def is_alert_sent(alert_id):
     """Checks if alert was sent today."""
@@ -64,8 +55,11 @@ async def market_timing_alert_task(context):
         is_market_closed = True
 
     if not is_market_closed:
+        # Fetch current sessions from DB
+        market_sessions = await get_market_sessions()
+        
         # Process for each session alert
-        for session in MARKET_SESSIONS:
+        for session in market_sessions:
             session_name = session["name"]
             
             # Determine current alert type

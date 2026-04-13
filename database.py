@@ -18,6 +18,16 @@ client = AsyncIOMotorClient(MONGO_URI)
 db = client[DB_NAME]
 subscribers = db[COLLECTION_NAME]
 calendar_collection = db["economic_calendar"]
+sessions_collection = db["market_sessions"]
+
+# --- DEFAULT MARKET SESSIONS (UTC) ---
+DEFAULT_MARKET_SESSIONS = [
+    {"name": "Sydney 🇦🇺", "open": "22:00", "close": "06:00"},
+    {"name": "Tokyo 🇯🇵", "open": "23:00", "close": "07:00"},
+    {"name": "Frankfurt 🇩🇪", "open": "06:00", "close": "14:00"},
+    {"name": "London 🇬🇧", "open": "07:00", "close": "15:00"},
+    {"name": "New York 🇺🇸", "open": "12:00", "close": "20:00"},
+]
 
 
 # To avoid duplicate alerts within the same minute
@@ -162,3 +172,27 @@ async def get_holidays_for_today(date_str):
     except Exception as e:
         logger.error(f"Error fetching holidays: {e}")
         return []
+async def get_market_sessions():
+    """Fetches market sessions from DB or returns defaults."""
+    count = await sessions_collection.count_documents({})
+    if count == 0:
+        # Initialize with defaults
+        await sessions_collection.insert_many(DEFAULT_MARKET_SESSIONS)
+        return DEFAULT_MARKET_SESSIONS
+    
+    cursor = sessions_collection.find({}, {"_id": 0})
+    return await cursor.to_list(length=20)
+
+async def update_market_session(session_name, open_time=None, close_time=None):
+    """Updates a specific session's timing."""
+    update_data = {}
+    if open_time: update_data["open"] = open_time
+    if close_time: update_data["close"] = close_time
+    
+    if not update_data: return False
+    
+    result = await sessions_collection.update_one(
+        {"name": session_name},
+        {"$set": update_data}
+    )
+    return result.modified_count > 0
