@@ -77,20 +77,25 @@ async def market_timing_alert_task(context):
 
             alert_msg = None
             alert_type = None
+            delete_mins = None
             display_name = f"{session_name} (London/NY Overlap 🚀🚀)" if session_name == "New York 🇺🇸" else session_name
 
             if current_time_str == warning_30m_dt:
                 alert_msg = WARNING_TEXT.format(name=display_name)
                 alert_type = f"{session_name}_30min"
+                delete_mins = 5
             elif current_time_str == warning_5m_dt:
                 alert_msg = PREP_TEXT.format(name=display_name)
                 alert_type = f"{session_name}_5min"
+                delete_mins = 5
             elif current_time_str == open_time:
                 alert_msg = NY_OPEN_OVERLAP if session_name == "New York 🇺🇸" else OPEN_TEXT.format(name=session_name)
                 alert_type = f"{session_name}_open"
+                delete_mins = 60
             elif current_time_str == close_time:
                 alert_msg = LONDON_CLOSE_OVERLAP if session_name == "London 🇬🇧" else CLOSE_TEXT.format(name=session_name)
                 alert_type = f"{session_name}_close"
+                delete_mins = 60
 
             if alert_msg and alert_type:
                 # Check for holidays if it's an 'open' alert
@@ -124,7 +129,7 @@ async def market_timing_alert_task(context):
                     add_to_targets(target_chat_ids, default_chat_id)
                     add_to_targets(target_chat_ids, admin_id)
 
-                    await send_telegram_msg(context, target_chat_ids, alert_msg, full_alert_id)
+                    await send_telegram_msg(context, target_chat_ids, alert_msg, full_alert_id, delete_after_mins=delete_mins)
 
     # --- SPECIAL WEEKEND ALERTS (Sent to all) ---
     all_chat_ids = [s["chat_id"] for s in subscribers]
@@ -147,12 +152,12 @@ async def market_timing_alert_task(context):
     if weekday == 4 and current_time_str == "21:00":
         alert_id = f"{today_str}_weekend_close"
         if not is_alert_sent(alert_id):
-            await send_telegram_msg(context, all_chat_ids, WEEKEND_CLOSE_ALERT, alert_id)
+            await send_telegram_msg(context, all_chat_ids, WEEKEND_CLOSE_ALERT, alert_id, delete_after_mins=60)
     
     if weekday == 6 and current_time_str == "21:30":
         alert_id = f"{today_str}_weekend_open"
         if not is_alert_sent(alert_id):
-            await send_telegram_msg(context, all_chat_ids, WEEKEND_OPEN_ALERT, alert_id)
+            await send_telegram_msg(context, all_chat_ids, WEEKEND_OPEN_ALERT, alert_id, delete_after_mins=5)
 
 
 
@@ -222,7 +227,18 @@ async def get_session_holiday_note(session_name, today_str):
     
     return ""
 
-async def send_telegram_msg(context, chat_ids, message, alert_id):
+async def delete_message_job(context):
+    """Job to delete a message after a delay."""
+    job_data = context.job.data
+    try:
+        await context.bot.delete_message(
+            chat_id=job_data['chat_id'], 
+            message_id=job_data['message_id']
+        )
+    except Exception as e:
+        logger.error(f"❌ Could not delete message {job_data['message_id']} in {job_data['chat_id']}: {e}")
+
+async def send_telegram_msg(context, chat_ids, message, alert_id, delete_after_mins=None):
     """Broadcasts message to all subscribers and marks as sent."""
     if isinstance(chat_ids, (int, str)):
         chat_ids = [chat_ids]
@@ -230,8 +246,16 @@ async def send_telegram_msg(context, chat_ids, message, alert_id):
     success_count = 0
     for chat_id in chat_ids:
         try:
-            await context.bot.send_message(chat_id=chat_id, text=message, parse_mode="Markdown")
+            sent_msg = await context.bot.send_message(chat_id=chat_id, text=message, parse_mode="Markdown")
             success_count += 1
+            
+            # Schedule auto-deletion if requested
+            if delete_after_mins and context.job_queue:
+                context.job_queue.run_once(
+                    delete_message_job,
+                    when=delete_after_mins * 60,
+                    data={'chat_id': chat_id, 'message_id': sent_msg.message_id}
+                )
         except Exception as e:
             logger.error(f"❌ Error sending to {chat_id}: {e}")
 
